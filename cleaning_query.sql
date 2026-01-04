@@ -50,6 +50,22 @@ with fa as (
 )
 select * from fa;
 
+-- some members show membership year < 2000, change year into 2000
+create or replace view clean_date as
+with cd1 as(
+	select
+		id,
+		to_date(membership_date, 'MM/DD/YYYY') as membership_date
+	from club_member_info
+), cd2 as(
+select
+	id,
+	concat(replace(left(membership_date::text, 2), '19', '20') || substring(membership_date::text from 3))::date as md,
+	membership_date
+from cd1
+)
+select * from cd2;
+
 -- combining all cleaned column
 drop table if exists transformed_club_member_info;
 create table transformed_club_member_info as
@@ -67,10 +83,12 @@ select
 	split_part(full_address, ',', 3) as state,
 	replace(full_address, ',', ', ') as full_address,
 	job_title,
-	to_date(membership_date, 'MM/DD/YYYY') as membership_date
+	cd.md as membership_date
 from club_member_info as cm
 join fn_clean
-on cm.id = fn_clean.id;
+on cm.id = fn_clean.id
+join clean_date as cd
+on cm.id = cd.id;
 
 -- cleaning duplicate value
 -- email is must unique
@@ -134,43 +152,9 @@ select
 	clean_to_null(membership_date::text)::date as membership_date
 from transformed_club_member_info;
 
--- create column is_active_membership
--- active membership is where all membership_date > year 2000
-with is_active as (
-	select
-		id,
-		membership_date,
-		case
-			when membership_date < '2000-01-01' then 'No'
-			else 'Yes'
-		end as is_active_membership
-	from transformed_club_member_info
-)
-select
-	tc.*,
-	ia.is_active_membership
-from transformed_club_member_info as tc
-join is_active as ia
-on tc.id = ia.id;
-
 -- create table cleaned_club_member_info
 drop table if exists cleaned_club_member_info;
 create table cleaned_club_member_info as
-with is_active as (
-	select
-		id,
-		membership_date,
-		case
-			when membership_date < '2000-01-01' then 'No'
-			else 'Yes'
-		end as is_active_membership
-	from transformed_club_member_info
-)
-select
-	tc.*,
-	ia.is_active_membership
-from transformed_club_member_info as tc
-join is_active as ia
-on tc.id = ia.id;
+select * from transformed_club_member_info;
 
 select * from cleaned_club_member_info;
